@@ -1,0 +1,81 @@
+import type { Bto } from "./types";
+
+export const BTO_MODELS: Bto[] = [
+  {
+    id: "d1", maker: "ドスパラ", name: "GALLERIA RM5R-R56",
+    cpu: "Ryzen 5 7500F", gpu: "RTX 5060", ram: "16GB DDR5", storage: "1TB NVMe",
+    color: "黒", price: 169800, tags: ["FPS", "コスパ", "ゲーム全般", "モンハン"],
+    note: "フルHD〜WQHDの定番エントリー",
+    url: "https://www.dospara.co.jp/",
+  },
+  {
+    id: "d2", maker: "ドスパラ", name: "GALLERIA XA7R-R57 ホワイト",
+    cpu: "Ryzen 7 7700", gpu: "RTX 5070", ram: "32GB DDR5", storage: "1TB NVMe",
+    color: "白", price: 289800, tags: ["FPS", "配信", "モンハン", "白モデル", "ゲーム全般"],
+    note: "WQHD高設定＋配信まで狙える",
+    url: "https://www.dospara.co.jp/",
+  },
+  {
+    id: "d3", maker: "ドスパラ", name: "GALLERIA ZA9R-R57T",
+    cpu: "Ryzen 7 9800X3D", gpu: "RTX 5070 Ti", ram: "32GB DDR5", storage: "2TB NVMe",
+    color: "黒", price: 389800, tags: ["FPS", "配信", "動画編集", "AI/生成", "ゲーム全般"],
+    note: "ゲームも制作も妥協したくない人向け",
+    url: "https://www.dospara.co.jp/",
+  },
+  {
+    id: "p1", maker: "パソコン工房", name: "LEVEL∞ R-Class RGL-R55A ホワイト",
+    cpu: "Ryzen 5 7500F", gpu: "RTX 5060 Ti 16GB", ram: "32GB DDR5", storage: "1TB NVMe",
+    color: "白", price: 219800, tags: ["モンハン", "白モデル", "コスパ", "ゲーム全般", "AI/生成"],
+    note: "VRAM16GBで重いテクスチャや生成AIにも余裕",
+    url: "https://www.pc-koubou.jp/",
+  },
+  {
+    id: "p2", maker: "パソコン工房", name: "LEVEL∞ R-Class RGL-R77B",
+    cpu: "Ryzen 7 7700", gpu: "RTX 4070 SUPER", ram: "32GB DDR5", storage: "1TB NVMe",
+    color: "黒", price: 279800, tags: ["FPS", "配信", "動画編集", "ゲーム全般"],
+    note: "型落ちGPUだがRTX4070系で安定した性能",
+    url: "https://www.pc-koubou.jp/",
+  },
+  {
+    id: "p3", maker: "パソコン工房", name: "STYLE∞ SGL-W ホワイト",
+    cpu: "Core i5-14400F", gpu: "RTX 5060", ram: "16GB DDR5", storage: "500GB NVMe",
+    color: "白", price: 189800, tags: ["白モデル", "コスパ", "ゲーム全般", "静音"],
+    note: "見た目重視の白ケース。ストレージは後から増設推奨",
+    url: "https://www.pc-koubou.jp/",
+  },
+  {
+    id: "m1", maker: "マウスコンピューター", name: "G TUNE DG-I5G60",
+    cpu: "Core i5-14400F", gpu: "RTX 5060", ram: "16GB DDR5", storage: "1TB NVMe",
+    color: "黒", price: 174800, tags: ["FPS", "コスパ", "ゲーム全般", "静音"],
+    note: "サポート体制が手厚く初心者向き",
+    url: "https://www.mouse-jp.co.jp/",
+  },
+  {
+    id: "m2", maker: "マウスコンピューター", name: "G TUNE DG-A7G70",
+    cpu: "Ryzen 7 7700", gpu: "RTX 5070", ram: "32GB DDR5", storage: "1TB NVMe",
+    color: "黒", price: 284800, tags: ["FPS", "配信", "モンハン", "動画編集"],
+    note: "国内生産・24時間365日サポート",
+    url: "https://www.mouse-jp.co.jp/",
+  },
+  {
+    id: "f1", maker: "フロンティア", name: "FRGHB650 シリーズ",
+    cpu: "Ryzen 5 7500F", gpu: "RTX 5060", ram: "16GB DDR5", storage: "1TB NVMe",
+    color: "黒", price: 164800, tags: ["コスパ", "FPS", "ゲーム全般", "モンハン"],
+    note: "とにかく安く始めたい人向け。セール時はさらに安い",
+    url: "https://www.frontier-direct.jp/",
+  },
+  {
+    id: "f2", maker: "フロンティア", name: "FRGXB850 ホワイト",
+    cpu: "Ryzen 7 7700", gpu: "RTX 5060 Ti", ram: "32GB DDR5", storage: "1TB NVMe",
+    color: "白", price: 244800, tags: ["モンハン", "白モデル", "配信", "ゲーム全般", "コスパ"],
+    note: "白で25万円以下に収まる貴重な一台",
+    url: "https://www.frontier-direct.jp/",
+  },
+  {
+    id: "f3", maker: "フロンティア", name: "FRGXB760 クリエイター向け",
+    cpu: "Core i7-14700F", gpu: "RTX 5070", ram: "64GB DDR5", storage: "2TB NVMe",
+    color: "黒", price: 319800, tags: ["動画編集", "AI/生成", "配信", "FPS"],
+    note: "メモリ64GBで動画編集・生成AIに強い",
+    url: "https://www.frontier-direct.jp/",
+  },
+];
