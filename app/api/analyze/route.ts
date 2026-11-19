@@ -154,6 +154,9 @@ async function handleSearch(body: any) {
 }
 
 // ---------------- タブB：自作PC診断 ----------------
+// 「型番が存在しない」系の断定を検出する(AIの知識より新しい製品を誤判定しやすいため)
+const NONEXIST = /実在しない|存在しない|架空|無効な型番|誤った型番|型番.{0,6}(誤り|間違|無効)/;
+
 async function handleDiagnose(body: any) {
   const p = body.parts || {};
   const parts = {
@@ -164,9 +167,11 @@ async function handleDiagnose(body: any) {
     return { error: "パーツを最低3つは入れてください", status: 400 };
   }
 
-  const key = `diag2:${Object.values(parts).map((v) => v.toLowerCase().replace(/\s+/g, " ")).join("|")}`;
+  const key = `diag3:${Object.values(parts).map((v) => v.toLowerCase().replace(/\s+/g, " ")).join("|")}`;
   const { value, hit } = await cached(key, DIAG_TTL, async () => {
+    const today = new Date().toISOString().slice(0, 10);
     const prompt = `あなたは自作PCショップのベテラン店員です。口調は辛口でかまいませんが、内容は「正確さ」を最優先してください。初心者がやりがちな失敗を、実害ベースで指摘します。
+今日は ${today} です。あなたの知識より新しい製品が、すでに発売されている可能性があります。
 以下のパーツ構成を診断してください。
 CPU: ${parts.cpu || "未入力"}
 GPU: ${parts.gpu || "未入力"}
@@ -178,14 +183,14 @@ PCケース: ${parts.pcCase || "未入力"}
 【絶対ルール】
 1. 事実と推測を分ける。各警告の detail の先頭に、確実に言えることは【確実】、型番や仕様が曖昧・不明で断定できないことは【要確認】を必ず付ける。
 2. 「火を吹く」「確実に壊れる」「絶対に動かない」など、不安を煽る誇張表現は禁止。具体的な理由と対処を淡々と書く。
-3. 知らない型番や自信がない仕様は、推測で作らず【要確認】とする。実在しない仕様を作らない。
-4. 規格の判定は次に従う。
+3. 【型番の実在判定の禁止】入力された型番について「実在しない」「存在しない」「架空」「無効」と判断・記載してはいけない。自分の知識にない型番は、新製品の可能性があるため「知識にない型番のため、仕様をメーカー公式で要確認」とだけ書き、その製品の仕様(ソケット・消費電力など)を推測で断定しない。
+4. 【確実】を付けてよいのは、次のような規格上の判定だけ: ソケットの不一致、メモリ世代(DDR4/DDR5)の不一致、ケースの対応サイズ超過。製品の実在や、細かい仕様は【確実】にしない。
+5. 規格の判定は次に従う。
 ・ケースの対応サイズ: ATXケース(ミドルタワー等)=ATX/mATX/Mini-ITX対応。mATXケース(ミニタワー等)=mATX/Mini-ITX対応。Mini-ITXケース=Mini-ITXのみ。マザーボードのサイズがケースの対応サイズ以内なら「不一致」ではないので、その警告は出さない。
 ・マザーボードのサイズ判定: 名前に「M」が付く型番(例 B650M、B760M)や「mATX」表記はmATX。「ITX」表記はMini-ITX。「ATX」表記や、それ以外の通常型番(例 Z790、B650)はATX。
-・ソケット互換と、メモリ世代(DDR4/DDR5)の一致を確認する。
 ・新しいCPUと古いロットのマザーボードの組み合わせは「BIOS更新が必要な場合がある」止まりにし、起動不可と断定しない(【要確認】)。
-5. 電源は、GPUメーカーの推奨電源容量(分かる場合)と比べて「余裕が少ない」「不足の恐れ」と書く。推奨値が分からない場合は【要確認】とする。
-6. GPUの長さ・厚みとケースの干渉、CPUクーラー高さなどは、具体的な寸法が分からない限り【要確認】とする。
+6. 電源は、GPUメーカーの推奨電源容量(分かる場合)と比べて「余裕が少ない」「不足の恐れ」と書く。推奨値が分からない場合は【要確認】とする。
+7. GPUの長さ・厚みとケースの干渉、CPUクーラー高さなどは、具体的な寸法が分からない限り【要確認】とする。
 
 【未入力の項目がある場合のルール】
 ・「未入力」のパーツを、入っている前提で診断してはいけない。
@@ -197,7 +202,7 @@ PCケース: ${parts.pcCase || "未入力"}
 severity: high=【確実】な非互換、物理的に入らない、電源が明らかに足りない場合だけ。mid=余裕が少ない、BIOS更新が必要な可能性、干渉の恐れ。low=補足や提案。【要確認】の警告は high にしない。
 グレード: S=ほぼ問題なし, A=軽微な注意のみ, B=要注意点あり, C=失敗リスクが高い(【確実】な問題が1つ以上、または要確認が多い), D=【確実】な非互換や起動不能が1つ以上ある場合だけ。入力済みの範囲だけで判定すること。
 
-自作の合計金額(diyTotal)は、日本の現在の相場感でのパーツ合計の概算を円の整数で。未入力パーツは、推奨スペックの一般的な相場を足して概算すること。
+自作の合計金額(diyTotal)は、日本の現在の相場感でのパーツ合計の概算を円の整数で。未入力パーツや知らない型番は、近い製品の相場で概算すること。
 さらに、下のBTOリストから最も近い完成品を1つ選んで equivalentBtoId に入れ、なぜ近いかを btoReason に書くこと。
 BTOリスト: ${JSON.stringify(BTO_MODELS.map(slim))}
 
@@ -207,24 +212,36 @@ warningsは最大6件、深刻な順。ただし「未入力の補完」は、�
 
     const ai = await callGemini(prompt);
 
-    // 安全装置: 【確実】が付いていない「危険」は「注意」に下げる
-    const warnings: Warning[] = (Array.isArray(ai.warnings) ? ai.warnings : [])
-      .slice(0, 6)
-      .map((w: any) => {
-        const detail = clean(w?.detail, 300);
-        let severity: "high" | "mid" | "low" = ["high", "mid", "low"].includes(w?.severity)
-          ? w.severity
-          : "mid";
-        if (severity === "high" && !detail.startsWith("【確実】")) severity = "mid";
-        return {
-          category: clean(w?.category, 20) || "その他",
-          severity,
-          title: clean(w?.title, 60),
-          detail,
-        };
-      });
+    // 安全装置1: 「型番が存在しない」系の断定は、強制的に「要確認」に書き換える
+    let replacedNonexist = false;
+    const warnings: Warning[] = [];
+    for (const w of (Array.isArray(ai.warnings) ? ai.warnings : []).slice(0, 6)) {
+      let title = clean(w?.title, 60);
+      let detail = clean(w?.detail, 300);
+      let severity: "high" | "mid" | "low" = ["high", "mid", "low"].includes(w?.severity)
+        ? w.severity
+        : "mid";
+      if (NONEXIST.test(`${title} ${detail}`)) {
+        if (replacedNonexist) continue; // 同じ趣旨の警告は1件にまとめる
+        replacedNonexist = true;
+        title = "型番の確認";
+        detail =
+          "【要確認】入力された型番の一部が、AIの知識にない新製品の可能性があります。メーカー公式サイトで型番と仕様(対応ソケット・消費電力など)を確認してください。";
+        severity = "low";
+      } else if (severity === "high" && !detail.startsWith("【確実】")) {
+        // 安全装置2: 【確実】が付いていない「危険」は「注意」に下げる
+        severity = "mid";
+      }
+      warnings.push({ category: clean(w?.category, 20) || "その他", severity, title, detail });
+    }
 
-    // 安全装置: 確実な危険が1つもないのに判定がDなら、Cに下げる
+    let summary = clean(ai.summary, 400);
+    if (NONEXIST.test(summary)) {
+      summary =
+        "入力された型番の一部がAIの知識になく、断定できない点があります。各警告の【確実】と【要確認】を分けて確認してください。";
+    }
+
+    // 安全装置3: 確実な危険が1つもないのに判定がDなら、Cに下げる
     let grade = ["S", "A", "B", "C", "D"].includes(ai.grade) ? ai.grade : "C";
     if (grade === "D" && !warnings.some((w) => w.severity === "high")) grade = "C";
 
@@ -232,7 +249,7 @@ warningsは最大6件、深刻な順。ただし「未入力の補完」は、�
     const total = Number(ai.diyTotal);
     return {
       value: {
-        grade, summary: clean(ai.summary, 400), warnings,
+        grade, summary, warnings,
         diyTotal: Number.isFinite(total) ? Math.round(total) : 0,
         bto: model ? { model, reason: clean(ai.btoReason, 200) } : null,
       },
@@ -263,4 +280,4 @@ export async function POST(req: NextRequest) {
     }
     return NextResponse.json({ error: "AIの呼び出しに失敗しました。少し待ってもう一度どうぞ。" }, { status: 502 });
   }
-  }
+}
