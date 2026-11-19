@@ -1,0 +1,9 @@
+@import "tailwindcss";
+
+html { color-scheme: dark; }
+body {
+  background: #020617;
+  color: #e2e8f0;
+  -webkit-tap-highlight-color: transparent;
+  font-family: system-ui, -apple-system, "Hiragino Sans", "Noto Sans JP", sans-serif;
+}
