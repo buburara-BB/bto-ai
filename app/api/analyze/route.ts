@@ -35,7 +35,7 @@ async function pickFromRakuten(
 
   const prompt = `あなたは日本のゲーミングPCに詳しい販売アドバイザーです。
 下の「楽天市場の実在商品リスト」の中から、ユーザーの要望に合う商品を最大3つ選んでください。リストにない商品は絶対に作らないこと。
-予算上限: ${budget}円 / 用途タグ: ${tags.join(", ") || "指定なし"} / 要望: ${query || "指定なし"}
+予算上限: ${budget}円(これが最終の予算。要望文に金額があっても、この値に合わせて判断すること) / 用途タグ: ${tags.join(", ") || "指定なし"} / 要望: ${query || "指定なし"}
 商品リスト(JSON): ${JSON.stringify(cands)}
 
 出力はJSONのみ。形式:
@@ -121,7 +121,25 @@ async function runSearch(query: string, tags: string[], budget: number): Promise
 async function handleSearch(body: any) {
   const query = clean(body.query, 300);
   const b = Number(body.budget);
-  const budget = Number.isFinite(b) ? Math.round(Math.min(Math.max(b, 100_000), 600_000) / 10_000) * 10_000 : 250_000;
+  const sliderBudget = Number.isFinite(b)
+    ? Math.round(Math.min(Math.max(b, 100_000), 600_000) / 10_000) * 10_000
+    : 250_000;
+
+  // 文章中に「15万円」のような金額があれば、スライダーより文章を優先する(10〜60万円の範囲のみ)
+  let budget = sliderBudget;
+  let budgetNote = "";
+  const m = query.match(/(\d+(?:\.\d+)?)\s*万/);
+  if (m) {
+    const man = Number(m[1]);
+    if (man >= 10 && man <= 60) {
+      const typed = Math.round(man) * 10_000;
+      if (typed !== sliderBudget) {
+        budgetNote = `文章に書かれた予算(${typed / 10_000}万円)を優先しました。`;
+      }
+      budget = typed;
+    }
+  }
+
   const tags: string[] = Array.isArray(body.tags)
     ? body.tags.slice(0, 8).map((t: unknown) => clean(t, 20)).filter(Boolean)
     : [];
@@ -131,7 +149,8 @@ async function handleSearch(body: any) {
     const r = await runSearch(query, tags, budget);
     return { value: r, cache: !r.degraded };
   });
-  return { ...value, cached: hit };
+  const note = [budgetNote, value.note].filter(Boolean).join(" ") || undefined;
+  return { ...value, note, cached: hit };
 }
 
 // ---------------- タブB：自作PC診断 ----------------
@@ -145,9 +164,9 @@ async function handleDiagnose(body: any) {
     return { error: "パーツを最低3つは入れてください", status: 400 };
   }
 
-  const key = `diag:${Object.values(parts).map((v) => v.toLowerCase().replace(/\s+/g, " ")).join("|")}`;
+  const key = `diag2:${Object.values(parts).map((v) => v.toLowerCase().replace(/\s+/g, " ")).join("|")}`;
   const { value, hit } = await cached(key, DIAG_TTL, async () => {
-    const prompt = `あなたは自作PCショップの辛口ベテラン店員です。初心者がやりがちな失敗を、実害ベースで容赦なく指摘してください。
+    const prompt = `あなたは自作PCショップのベテラン店員です。口調は辛口でかまいませんが、内容は「正確さ」を最優先してください。初心者がやりがちな失敗を、実害ベースで指摘します。
 以下のパーツ構成を診断してください。
 CPU: ${parts.cpu || "未入力"}
 GPU: ${parts.gpu || "未入力"}
@@ -156,28 +175,59 @@ GPU: ${parts.gpu || "未入力"}
 電源: ${parts.psu || "未入力"}
 PCケース: ${parts.pcCase || "未入力"}
 
-チェック観点: ソケット/チップセット/メモリ規格の互換性、BIOS更新が必要になる罠(新CPUに古い在庫マザー等)、GPUの長さ・厚みとケースの干渉、CPUクーラー高さ・ラジエーター対応、電源容量とコネクタ(12V-2x6等)、CPU/GPUのボトルネック、初心者トラップ(前面USB-C、ケースファン不足、保証/OSライセンス等)。
-製品名が曖昧・不明な場合は断定せず「要確認」と書くこと。実在しない仕様を作らないこと。
+【絶対ルール】
+1. 事実と推測を分ける。各警告の detail の先頭に、確実に言えることは【確実】、型番や仕様が曖昧・不明で断定できないことは【要確認】を必ず付ける。
+2. 「火を吹く」「確実に壊れる」「絶対に動かない」など、不安を煽る誇張表現は禁止。具体的な理由と対処を淡々と書く。
+3. 知らない型番や自信がない仕様は、推測で作らず【要確認】とする。実在しない仕様を作らない。
+4. 規格の判定は次に従う。
+・ケースの対応サイズ: ATXケース(ミドルタワー等)=ATX/mATX/Mini-ITX対応。mATXケース(ミニタワー等)=mATX/Mini-ITX対応。Mini-ITXケース=Mini-ITXのみ。マザーボードのサイズがケースの対応サイズ以内なら「不一致」ではないので、その警告は出さない。
+・マザーボードのサイズ判定: 名前に「M」が付く型番(例 B650M、B760M)や「mATX」表記はmATX。「ITX」表記はMini-ITX。「ATX」表記や、それ以外の通常型番(例 Z790、B650)はATX。
+・ソケット互換と、メモリ世代(DDR4/DDR5)の一致を確認する。
+・新しいCPUと古いロットのマザーボードの組み合わせは「BIOS更新が必要な場合がある」止まりにし、起動不可と断定しない(【要確認】)。
+5. 電源は、GPUメーカーの推奨電源容量(分かる場合)と比べて「余裕が少ない」「不足の恐れ」と書く。推奨値が分からない場合は【要確認】とする。
+6. GPUの長さ・厚みとケースの干渉、CPUクーラー高さなどは、具体的な寸法が分からない限り【要確認】とする。
 
-危険度グレード: S=ほぼ問題なし, A=軽微な注意のみ, B=要注意点あり, C=失敗リスク高め, D=このままだと組めない/事故の恐れ。
-自作の合計金額(diyTotal)は、日本の現在の相場感でのパーツ合計の概算を円の整数で。
+【未入力の項目がある場合のルール】
+・「未入力」のパーツを、入っている前提で診断してはいけない。
+・未入力が1つでもあれば、入力済みのパーツから導ける推奨スペックを、1件の警告にまとめて含めること(category は「未入力の補完」、severity は low か mid、detail の先頭は【要確認】)。
+・例: 電源が未入力なら、GPUとCPUから「◯W以上(余裕を見て◯W前後)、80PLUS Gold以上がおすすめ」。ケースが未入力なら、マザーボードの規格に対応し、GPUの長さが収まるサイズ。メモリが未入力なら、マザーボードに合うDDR世代と容量の目安。
+・推奨は「目安」と明記し、具体的な製品名は挙げず、スペックの範囲で書く。
+
+【危険度の付け方】
+severity: high=【確実】な非互換、物理的に入らない、電源が明らかに足りない場合だけ。mid=余裕が少ない、BIOS更新が必要な可能性、干渉の恐れ。low=補足や提案。【要確認】の警告は high にしない。
+グレード: S=ほぼ問題なし, A=軽微な注意のみ, B=要注意点あり, C=失敗リスクが高い(【確実】な問題が1つ以上、または要確認が多い), D=【確実】な非互換や起動不能が1つ以上ある場合だけ。入力済みの範囲だけで判定すること。
+
+自作の合計金額(diyTotal)は、日本の現在の相場感でのパーツ合計の概算を円の整数で。未入力パーツは、推奨スペックの一般的な相場を足して概算すること。
 さらに、下のBTOリストから最も近い完成品を1つ選んで equivalentBtoId に入れ、なぜ近いかを btoReason に書くこと。
 BTOリスト: ${JSON.stringify(BTO_MODELS.map(slim))}
 
 出力はJSONのみ。形式:
-{"grade":"S|A|B|C|D","summary":"総評を2〜3文","warnings":[{"category":"物理干渉|電源|ボトルネック|BIOS|互換性|初心者トラップ","severity":"high|mid|low","title":"短い見出し","detail":"具体的な困りごとと対処法を60〜120字"}],"diyTotal":数値,"equivalentBtoId":"id","btoReason":"60字程度"}
-warningsは最大6件、深刻な順。`;
+{"grade":"S|A|B|C|D","summary":"総評を2〜3文。誇張せず、確実な点と要確認の点を分けて書く","warnings":[{"category":"物理干渉|電源|ボトルネック|BIOS|互換性|初心者トラップ|未入力の補完","severity":"high|mid|low","title":"短い見出し","detail":"【確実】または【要確認】で始め、具体的な困りごとと対処法を60〜120字"}],"diyTotal":数値,"equivalentBtoId":"id","btoReason":"60字程度"}
+warningsは最大6件、深刻な順。ただし「未入力の補完」は、該当する場合は必ず1件含めること。`;
 
     const ai = await callGemini(prompt);
-    const grade = ["S", "A", "B", "C", "D"].includes(ai.grade) ? ai.grade : "C";
+
+    // 安全装置: 【確実】が付いていない「危険」は「注意」に下げる
     const warnings: Warning[] = (Array.isArray(ai.warnings) ? ai.warnings : [])
       .slice(0, 6)
-      .map((w: any) => ({
-        category: clean(w?.category, 20) || "その他",
-        severity: ["high", "mid", "low"].includes(w?.severity) ? w.severity : "mid",
-        title: clean(w?.title, 60),
-        detail: clean(w?.detail, 300),
-      }));
+      .map((w: any) => {
+        const detail = clean(w?.detail, 300);
+        let severity: "high" | "mid" | "low" = ["high", "mid", "low"].includes(w?.severity)
+          ? w.severity
+          : "mid";
+        if (severity === "high" && !detail.startsWith("【確実】")) severity = "mid";
+        return {
+          category: clean(w?.category, 20) || "その他",
+          severity,
+          title: clean(w?.title, 60),
+          detail,
+        };
+      });
+
+    // 安全装置: 確実な危険が1つもないのに判定がDなら、Cに下げる
+    let grade = ["S", "A", "B", "C", "D"].includes(ai.grade) ? ai.grade : "C";
+    if (grade === "D" && !warnings.some((w) => w.severity === "high")) grade = "C";
+
     const model = BTO_MODELS.find((m) => m.id === ai.equivalentBtoId) || null;
     const total = Number(ai.diyTotal);
     return {
@@ -213,4 +263,4 @@ export async function POST(req: NextRequest) {
     }
     return NextResponse.json({ error: "AIの呼び出しに失敗しました。少し待ってもう一度どうぞ。" }, { status: 502 });
   }
-      }
+  }
