@@ -167,7 +167,7 @@ async function handleDiagnose(body: any) {
     return { error: "パーツを最低3つは入れてください", status: 400 };
   }
 
-  const key = `diag3:${Object.values(parts).map((v) => v.toLowerCase().replace(/\s+/g, " ")).join("|")}`;
+  const key = `diag4:${Object.values(parts).map((v) => v.toLowerCase().replace(/\s+/g, " ")).join("|")}`;
   const { value, hit } = await cached(key, DIAG_TTL, async () => {
     const today = new Date().toISOString().slice(0, 10);
     const prompt = `あなたは自作PCショップのベテラン店員です。口調は辛口でかまいませんが、内容は「正確さ」を最優先してください。初心者がやりがちな失敗を、実害ベースで指摘します。
@@ -194,9 +194,11 @@ PCケース: ${parts.pcCase || "未入力"}
 
 【未入力の項目がある場合のルール】
 ・「未入力」のパーツを、入っている前提で診断してはいけない。
-・未入力が1つでもあれば、入力済みのパーツから導ける推奨スペックを、1件の警告にまとめて含めること(category は「未入力の補完」、severity は low か mid、detail の先頭は【要確認】)。
+・上の6項目(CPU・GPU・マザーボード・メモリ・電源・PCケース)のうち、未入力が1つでもあれば、入力済みのパーツから導ける推奨スペックを、1件の警告にまとめて含めること(category は「未入力の補完」、severity は low か mid、detail の先頭は【要確認】)。
 ・例: 電源が未入力なら、GPUとCPUから「◯W以上(余裕を見て◯W前後)、80PLUS Gold以上がおすすめ」。ケースが未入力なら、マザーボードの規格に対応し、GPUの長さが収まるサイズ。メモリが未入力なら、マザーボードに合うDDR世代と容量の目安。
 ・推奨は「目安」と明記し、具体的な製品名は挙げず、スペックの範囲で書く。
+・入力欄は上の6項目(CPU・GPU・マザーボード・メモリ・電源・PCケース)だけです。ストレージ、CPUクーラー、ケースファン、OSなど、入力欄にないパーツを「未入力」と書いてはいけない。
+・ただし初心者が忘れがちなので、入力欄にないパーツ(ストレージ・CPUクーラーなど)は、警告を1件にまとめて、category は「初心者トラップ」、severity は low、detail の先頭は【要確認】にして、「入力欄にないが別途必要。CPUに純正クーラーが付属するかは型番で変わる」といった短い注意を書くこと。
 
 【危険度の付け方】
 severity: high=【確実】な非互換、物理的に入らない、電源が明らかに足りない場合だけ。mid=余裕が少ない、BIOS更新が必要な可能性、干渉の恐れ。low=補足や提案。【要確認】の警告は high にしない。
@@ -280,4 +282,4 @@ export async function POST(req: NextRequest) {
     }
     return NextResponse.json({ error: "AIの呼び出しに失敗しました。少し待ってもう一度どうぞ。" }, { status: 502 });
   }
-}
+      }
